@@ -47,11 +47,11 @@ This CI/CD pipeline is defined in the
 
 ### Key Features of the Secure Pipeline
 
-✅ **Branch protection**: Ensures that security checks run before merging changes.
-✅ **Secret management**: Uses **GitHubSecrets** to store sensitive credentials. 
-✅ **Automated security testing**: Detects vulnerabilities before deployment. 
-✅ **GitHub Container Registry (GHCR) support**: Securely stores built images. 
-✅ **Kubernetes deployment with Helm**: Ensures a robust and scalable deployment process.
+- ✅ **Branch protection**: Ensures that security checks run before merging changes.
+- ✅ **Secret management**: Uses **GitHubSecrets** to store sensitive credentials. 
+- ✅ **Automated security testing**: Detects vulnerabilities before deployment. 
+- ✅ **GitHub Container Registry (GHCR) support**: Securely stores built images. 
+- ✅ **Kubernetes deployment with Helm**: Ensures a robust and scalable deployment process.
 
 ## Imporvments
 

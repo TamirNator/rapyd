@@ -1,10 +1,5 @@
 # SSL Certificate Creation
 
-## Overview
-This guide provides step-by-step instructions for generating a self-signed SSL/TLS certificate for `devsecops.local`, valid for **at least 365 days**, including a **Subject Alternative Name (SAN)** for `www.devsecops.local`.
-
----
-
 ## Steps to Generate a Self-Signed SSL Certificate
 
 ### ✅ Step 1: Generate a Private Key
