@@ -8,6 +8,9 @@ on:
     branches:
       - main
 
+env:
+  AWS_REGION: "eu-west-1"
+
 jobs:
   security-scans:
     name: Security Scanning
@@ -65,22 +68,45 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Login to GitHub Container Registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/TamirGitHubOIDC
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        if: github.ref == 'refs/heads/main'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set Environment Variables
+        run: |
+          echo "ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_ENV
+          echo "ECR_REPOSITORY=app" >> $GITHUB_ENV
+          echo "IMAGE_TAG=$(echo $GITHUB_SHA | head -c7)" >> $GITHUB_ENV
 
       - name: Build Docker Image
         run: |
-          docker build -t ghcr.io/${{ github.repository }}/app:latest .
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+      
+      - name: Create ECR Repository if Not Exists
+        uses: int128/create-ecr-repository-action@v1
+        with:
+          repository: app
+      - name: Push Docker Image to ECR
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
       - name: Scan Image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'ghcr.io/${{ github.repository }}/app:latest'
+          image-ref: '$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG'
           format: 'table'
 
       - name: Push Image to Registry
         run: |
-          docker push ghcr.io/${{ github.repository }}/app:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
   deploy:
     name: Deploy to Kubernetes
@@ -90,17 +116,24 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Kubeconfig
+      - name: Set Environment Variables
         run: |
-          echo "${{ secrets.KUBECONFIG }}" > kubeconfig.yaml
-          export KUBECONFIG=kubeconfig.yaml
+          echo "ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_ENV
+          echo "ECR_REPOSITORY=app" >> $GITHUB_ENV
+          echo "IMAGE_TAG=$(echo $GITHUB_SHA | head -c7)" >> $GITHUB_ENV
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubOIDC
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Deploy with Helm
         run: |
           helm upgrade --install myapp ./helm/ \
             --namespace myapp \
-            --set image.repository=ghcr.io/${{ github.repository }}/app \
-            --set image.tag=latest
+            --set image.repository=$ECR_REGISTRY/$ECR_REPOSITORY \
+            --set image.tag=$IMAGE_TAG
 
       - name: Verify Deployment
         run: kubectl get pods -n myapp
