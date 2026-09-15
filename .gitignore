@@ -1,0 +1,13 @@
+# Terraform working directories and state
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Terragrunt generated files
+**/.terragrunt-cache/
+**/terragrunt_rendered.json
+**/backend.tf
+**/provider.tf
+**/versions.tf

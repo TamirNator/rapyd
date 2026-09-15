@@ -1,0 +1,78 @@
+name: Terraform CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/terraform.yml"
+      - "deploy/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/terraform.yml"
+      - "deploy/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: eu-west-1
+  TERRAGRUNT_VERSION: v0.45.15
+  TERRAFORM_VERSION: 1.5.7
+  TERRAGRUNT_ROOT: deploy/terragrunt/main/eu-west-1/dev
+
+jobs:
+  terraform:
+    name: Terraform checks and plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Install Terragrunt
+        run: |
+          curl --fail --silent --show-error --location \
+            "https://github.com/gruntwork-io/terragrunt/releases/download/${TERRAGRUNT_VERSION}/terragrunt_linux_amd64" \
+            --output "$RUNNER_TEMP/terragrunt"
+          chmod +x "$RUNNER_TEMP/terragrunt"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/terragrunt" --version
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive deploy/modules
+
+      - name: Check Terragrunt formatting
+        run: |
+          terragrunt hclfmt --terragrunt-check deploy/terragrunt/root.hcl
+          terragrunt hclfmt --terragrunt-check deploy/terragrunt/_envcommon
+          find "$TERRAGRUNT_ROOT" -name terragrunt.hcl -print0 \
+            | xargs -0 -n1 terragrunt hclfmt --terragrunt-check
+
+      - name: Configure AWS credentials with OIDC
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: github-actions-${{ github.run_id }}
+
+      - name: Plan Terragrunt deployment
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        working-directory: ${{ env.TERRAGRUNT_ROOT }}
+        env:
+          TF_VAR_karpenter_chart_version: ${{ vars.KARPENTER_CHART_VERSION }}
+        run: terragrunt run-all plan --terragrunt-non-interactive
