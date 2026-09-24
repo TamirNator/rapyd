@@ -19,9 +19,11 @@ deploy/
       platform/eks/
         eks-backend/cluster, eks-backend/karpenter
         eks-gateway/cluster, eks-gateway/karpenter
-  helm/
-    hello-backend/      the backend's "Hello from backend" service
-    gateway-proxy/       the gateway's nginx reverse proxy
+helm/
+  hello-backend/      the backend's "Hello from backend" service
+  gateway-proxy/       the gateway's nginx reverse proxy
+scripts/
+  setup-github-oidc.sh   one-time GitHub Actions OIDC bootstrap (not run by CI)
 .github/workflows/terraform.yml   the whole CI/CD pipeline
 .tflint.hcl                       repo-wide tflint config
 ```
@@ -84,7 +86,7 @@ repo's own development.
 
 ## How the proxy talks to the backend
 
-1. The backend's Helm chart (`deploy/helm/hello-backend`) exposes its
+1. The backend's Helm chart (`helm/hello-backend`) exposes its
    `hashicorp/http-echo` pod through a Kubernetes `Service` of
    `type: LoadBalancer` with the AWS **internal**-scheme annotations. A plain
    `ClusterIP` would only be reachable inside the backend cluster's own pod
@@ -92,7 +94,7 @@ repo's own development.
    `vpc-backend`'s subnets, reachable from the peered `vpc-gateway` over the
    peering connection and the security group rule above.
 2. The internal NLB's hostname is only known after that chart is installed,
-   so the gateway chart (`deploy/helm/gateway-proxy`) takes it as a required
+   so the gateway chart (`helm/gateway-proxy`) takes it as a required
    Helm value (`backendHostname`, no usable default — the render fails
    loudly if it's missing) and templates it directly into nginx's
    `proxy_pass`. This is the "configure DNS resolution, not hardcoded IPs"
@@ -298,7 +300,7 @@ pipeline, see "What's next"):
 - **Observability**: metrics-server plus Prometheus/Grafana or AWS Managed
   Prometheus, and centralized logging (Fluent Bit → CloudWatch or an
   aggregator), neither of which exists yet.
-- **GitOps**: Argo CD or Flux watching `deploy/helm/*` instead of CI
+- **GitOps**: Argo CD or Flux watching `helm/*` instead of CI
   directly running `helm upgrade`, so cluster state is reconciled
   continuously rather than only on push.
 - **NetworkPolicy**: as described above.

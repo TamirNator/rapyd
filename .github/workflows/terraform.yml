@@ -5,12 +5,14 @@ on:
     paths:
       - ".github/workflows/terraform.yml"
       - "deploy/**"
+      - "helm/**"
   push:
     branches:
       - main
     paths:
       - ".github/workflows/terraform.yml"
       - "deploy/**"
+      - "helm/**"
 
 permissions:
   contents: read
@@ -148,12 +150,12 @@ jobs:
       - name: Lint and validate Helm charts
         run: |
           set -e
-          helm lint deploy/helm/hello-backend
-          helm lint deploy/helm/gateway-proxy --set backendHostname=placeholder.invalid
+          helm lint helm/hello-backend
+          helm lint helm/gateway-proxy --set backendHostname=placeholder.invalid
 
-          helm template deploy/helm/hello-backend --namespace backend \
+          helm template helm/hello-backend --namespace backend \
             | kubeconform -strict -summary -
-          helm template deploy/helm/gateway-proxy --namespace gateway \
+          helm template helm/gateway-proxy --namespace gateway \
               --set backendHostname=placeholder.invalid \
             | kubeconform -strict -summary -
 
@@ -209,7 +211,7 @@ jobs:
       - name: Deploy backend service
         if: github.event_name == 'push'
         run: |
-          helm upgrade --install hello-backend deploy/helm/hello-backend \
+          helm upgrade --install hello-backend helm/hello-backend \
             --kube-context backend \
             --namespace backend --create-namespace \
             --wait --timeout 6m
@@ -233,7 +235,7 @@ jobs:
       - name: Deploy gateway proxy
         if: github.event_name == 'push'
         run: |
-          helm upgrade --install gateway-proxy deploy/helm/gateway-proxy \
+          helm upgrade --install gateway-proxy helm/gateway-proxy \
             --kube-context gateway \
             --namespace gateway --create-namespace \
             --set backendHostname=${{ steps.backend_lb.outputs.hostname }} \
