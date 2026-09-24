@@ -63,6 +63,21 @@
       ]
     },
     {
+      "Sid": "EksNodegroupServiceLinkedRole",
+      "Effect": "Allow",
+      "Action": ["iam:GetRole"],
+      "Resource": "arn:aws:iam::__ACCOUNT_ID__:role/aws-service-role/eks-nodegroup.amazonaws.com/AWSServiceRoleForAmazonEKSNodegroup"
+    },
+    {
+      "Sid": "EksNodegroupServiceLinkedRoleCreate",
+      "Effect": "Allow",
+      "Action": ["iam:CreateServiceLinkedRole"],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": { "iam:AWSServiceName": "eks-nodegroup.amazonaws.com" }
+      }
+    },
+    {
       "Sid": "EKSAddonVersionLookup",
       "Effect": "Allow",
       "Action": ["eks:DescribeAddonVersions"],
