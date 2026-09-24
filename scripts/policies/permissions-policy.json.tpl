@@ -123,8 +123,9 @@
       "Sid": "CloudWatchLogsForEksControlPlane",
       "Effect": "Allow",
       "Action": [
-        "logs:CreateLogGroup", "logs:PutRetentionPolicy",
-        "logs:DeleteLogGroup", "logs:TagLogGroup", "logs:ListTagsLogGroup"
+        "logs:CreateLogGroup", "logs:PutRetentionPolicy", "logs:DeleteLogGroup",
+        "logs:TagLogGroup", "logs:ListTagsLogGroup",
+        "logs:TagResource", "logs:UntagResource", "logs:ListTagsForResource"
       ],
       "Resource": "arn:aws:logs:__AWS_REGION__:__ACCOUNT_ID__:log-group:/aws/eks/rapyd-*:*"
     },
