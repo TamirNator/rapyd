@@ -65,6 +65,15 @@ inputs = {
   accepter_route_table_ids        = dependency.vpc_backend.outputs.private_route_table_ids
   accepter_node_security_group_id = dependency.eks_backend_cluster.outputs.node_security_group_id
 
-  # The backend "Hello from backend" web server's port.
-  allowed_port = 80
+  # Real apply confirmed a fixed port 80 doesn't work here: the legacy
+  # in-tree AWS cloud provider load balancer controller (what actually
+  # creates hello-backend's internal NLB) only supports `instance` target
+  # mode, which forwards to a per-node NodePort Kubernetes assigns
+  # dynamically (e.g. 31268), not to the Service's port 80 directly.
+  # nginx's "upstream timed out" errors traced straight back to this: the
+  # security group only allowed port 80, but traffic was actually arriving
+  # on the real NodePort. Opening the full valid NodePort range instead of
+  # guessing/pinning one avoids re-breaking this on every redeploy.
+  allowed_from_port = 30000
+  allowed_to_port   = 32767
 }

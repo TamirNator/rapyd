@@ -31,8 +31,8 @@ resource "aws_route" "accepter_to_requester" {
 # in that VPC."
 resource "aws_security_group_rule" "allow_peer_ingress" {
   type                     = "ingress"
-  from_port                = var.allowed_port
-  to_port                  = var.allowed_port
+  from_port                = var.allowed_from_port
+  to_port                  = var.allowed_to_port
   protocol                 = "tcp"
   source_security_group_id = var.requester_node_security_group_id
   security_group_id        = var.accepter_node_security_group_id

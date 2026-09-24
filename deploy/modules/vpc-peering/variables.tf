@@ -38,8 +38,23 @@ variable "requester_node_security_group_id" {
   type        = string
 }
 
-variable "allowed_port" {
-  description = "TCP port on the accepter side's nodes that the requester side is allowed to reach"
+variable "allowed_from_port" {
+  description = <<-EOT
+    Start of the TCP port range on the accepter side's nodes that the
+    requester side is allowed to reach. Real apply confirmed this needs to
+    cover the Kubernetes NodePort range (30000-32767) rather than the
+    Service's own port (e.g. 80): the legacy in-tree AWS cloud provider
+    load balancer controller (the one actually creating these NLBs here)
+    only supports `instance` target mode, which forwards the NLB's port to
+    a per-node NodePort that Kubernetes assigns dynamically, not to the
+    Service's port directly. A single fixed port would only work by
+    coincidence.
+  EOT
+  type        = number
+}
+
+variable "allowed_to_port" {
+  description = "End of the TCP port range on the accepter side's nodes that the requester side is allowed to reach"
   type        = number
 }
 
