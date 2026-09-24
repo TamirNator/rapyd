@@ -41,3 +41,15 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "private_subnet_tags" {
+  description = <<-EOT
+    Extra tags applied only to private subnets, merged on top of `tags`.
+    Karpenter's EC2NodeClass discovers which subnets it may launch nodes
+    into via a tag match (karpenter.sh/discovery = <cluster_name> here) —
+    without this, Karpenter fails with "no subnets found" and never
+    provisions any capacity, confirmed by a real apply.
+  EOT
+  type        = map(string)
+  default     = {}
+}
