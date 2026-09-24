@@ -42,6 +42,12 @@
       "Resource": "*"
     },
     {
+      "Sid": "EksOptimizedAmiLookup",
+      "Effect": "Allow",
+      "Action": ["ssm:GetParameter"],
+      "Resource": "arn:aws:ssm:__AWS_REGION__::parameter/aws/service/eks/optimized-ami/*"
+    },
+    {
       "Sid": "EKS",
       "Effect": "Allow",
       "Action": [
