@@ -1,3 +1,11 @@
+# Used by the generated helm/kubectl provider blocks (see this unit's
+# terragrunt.hcl) to authenticate to the cluster. Needs no extra IAM
+# permission beyond sts:GetCallerIdentity (already granted): it generates a
+# signed STS token locally rather than calling any EKS API.
+data "aws_eks_cluster_auth" "this" {
+  name = var.cluster_name
+}
+
 module "karpenter" {
   source  = "terraform-aws-modules/eks/aws//modules/karpenter"
   version = "~> 21.0"
