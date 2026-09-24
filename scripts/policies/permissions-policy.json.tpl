@@ -64,7 +64,8 @@
       "Effect": "Allow",
       "Action": [
         "iam:CreatePolicy", "iam:DeletePolicy", "iam:GetPolicy",
-        "iam:GetPolicyVersion", "iam:CreatePolicyVersion", "iam:DeletePolicyVersion", "iam:ListPolicyVersions"
+        "iam:GetPolicyVersion", "iam:CreatePolicyVersion", "iam:DeletePolicyVersion", "iam:ListPolicyVersions",
+        "iam:TagPolicy", "iam:UntagPolicy", "iam:ListPolicyTags"
       ],
       "Resource": [
         "arn:aws:iam::__ACCOUNT_ID__:policy/eks-*",
