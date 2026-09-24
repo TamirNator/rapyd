@@ -7,13 +7,16 @@ module "karpenter" {
   iam_role_name                   = "eks-${var.cluster_name}-karpenter-controller"
   iam_role_use_name_prefix        = false
 
-  # The module's controller policy defaults to a standalone (non-inline)
-  # IAM policy named "KarpenterController" (name-prefixed), which doesn't
-  # carry the eks-/sentinel- prefix the assignment requires and the CI
-  # deploy role's own IAM permissions enforce — left at that default, the
-  # real apply would be denied creating it. Overridden to match.
-  iam_policy_name            = "eks-${var.cluster_name}-karpenter-controller"
-  iam_policy_use_name_prefix = false
+  # Real apply confirmed the controller's default standalone policy
+  # actually exceeds AWS's 6,144-character limit for managed policies
+  # (LimitExceeded: Cannot exceed quota for PolicySize). enable_inline_policy
+  # switches it to an inline role policy instead, which has a 10,240-char
+  # limit — the module's own documented fix for this exact error. This
+  # also means iam_policy_name/iam_policy_use_name_prefix (previously set
+  # to keep the standalone policy's name eks-/sentinel--prefixed) are moot:
+  # there's no separate policy resource anymore, just an inline one on the
+  # already-prefixed controller role.
+  enable_inline_policy = true
 
   node_iam_role_name            = "eks-${var.cluster_name}-karpenter-node"
   node_iam_role_use_name_prefix = false

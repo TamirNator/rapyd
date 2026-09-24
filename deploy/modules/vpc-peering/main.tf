@@ -41,4 +41,12 @@ resource "aws_security_group_rule" "allow_peer_ingress" {
   # phrased to avoid one rather than relying on getting the allowed
   # character set right from memory.
   description = "Cross-VPC app traffic from the ${var.name} requester EKS nodes"
+
+  # Real apply confirmed this is necessary, not just theoretical: this
+  # resource's arguments never reference aws_vpc_peering_connection.this,
+  # so Terraform had no implicit ordering guarantee and could try to
+  # authorize the cross-VPC reference before the peering connection
+  # actually existed/was active, failing with "you have specified two
+  # resources that belong to different networks."
+  depends_on = [aws_vpc_peering_connection.this]
 }

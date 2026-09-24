@@ -156,7 +156,8 @@
       "Effect": "Allow",
       "Action": [
         "events:PutRule", "events:DescribeRule", "events:DeleteRule",
-        "events:PutTargets", "events:RemoveTargets", "events:ListTargetsByRule"
+        "events:PutTargets", "events:RemoveTargets", "events:ListTargetsByRule",
+        "events:TagResource", "events:UntagResource", "events:ListTagsForResource"
       ],
       "Resource": "arn:aws:events:__AWS_REGION__:__ACCOUNT_ID__:rule/*"
     },
