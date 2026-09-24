@@ -123,10 +123,26 @@
       "Sid": "CloudWatchLogsForEksControlPlane",
       "Effect": "Allow",
       "Action": [
-        "logs:CreateLogGroup", "logs:DescribeLogGroups", "logs:PutRetentionPolicy",
+        "logs:CreateLogGroup", "logs:PutRetentionPolicy",
         "logs:DeleteLogGroup", "logs:TagLogGroup", "logs:ListTagsLogGroup"
       ],
       "Resource": "arn:aws:logs:__AWS_REGION__:__ACCOUNT_ID__:log-group:/aws/eks/rapyd-*:*"
+    },
+    {
+      "Sid": "CloudWatchLogsDescribe",
+      "Effect": "Allow",
+      "Action": ["logs:DescribeLogGroups"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EksSecretsKms",
+      "Effect": "Allow",
+      "Action": [
+        "kms:CreateKey", "kms:TagResource", "kms:DescribeKey", "kms:EnableKeyRotation",
+        "kms:GetKeyPolicy", "kms:PutKeyPolicy", "kms:ScheduleKeyDeletion",
+        "kms:CreateAlias", "kms:DeleteAlias", "kms:ListAliases"
+      ],
+      "Resource": "*"
     },
     {
       "Sid": "CallerIdentity",
