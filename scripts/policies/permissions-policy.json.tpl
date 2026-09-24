@@ -19,8 +19,26 @@
         "ec2:UpdateSecurityGroupRuleDescriptionsIngress", "ec2:UpdateSecurityGroupRuleDescriptionsEgress",
         "ec2:CreateVpcPeeringConnection", "ec2:AcceptVpcPeeringConnection", "ec2:DeleteVpcPeeringConnection",
         "ec2:CreateNetworkAclEntry", "ec2:DeleteNetworkAclEntry", "ec2:ReplaceNetworkAclEntry",
+        "ec2:CreateLaunchTemplate", "ec2:CreateLaunchTemplateVersion", "ec2:ModifyLaunchTemplate",
+        "ec2:DeleteLaunchTemplate", "ec2:DeleteLaunchTemplateVersions",
         "ec2:CreateTags", "ec2:DeleteTags"
       ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EksClusterOidcProvider",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateOpenIDConnectProvider", "iam:DeleteOpenIDConnectProvider",
+        "iam:GetOpenIDConnectProvider", "iam:TagOpenIDConnectProvider",
+        "iam:UpdateOpenIDConnectProviderThumbprint"
+      ],
+      "Resource": "arn:aws:iam::__ACCOUNT_ID__:oidc-provider/oidc.eks.__AWS_REGION__.amazonaws.com/id/*"
+    },
+    {
+      "Sid": "EksClusterOidcProviderList",
+      "Effect": "Allow",
+      "Action": ["iam:ListOpenIDConnectProviders"],
       "Resource": "*"
     },
     {
