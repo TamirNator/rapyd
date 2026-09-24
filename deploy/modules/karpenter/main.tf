@@ -2,10 +2,21 @@ module "karpenter" {
   source  = "terraform-aws-modules/eks/aws//modules/karpenter"
   version = "~> 21.0"
 
-  cluster_name = var.cluster_name
-
-  enable_pod_identity             = true
+  cluster_name                    = var.cluster_name
   create_pod_identity_association = true
+  iam_role_name                   = "eks-${var.cluster_name}-karpenter-controller"
+  iam_role_use_name_prefix        = false
+
+  # The module's controller policy defaults to a standalone (non-inline)
+  # IAM policy named "KarpenterController" (name-prefixed), which doesn't
+  # carry the eks-/sentinel- prefix the assignment requires and the CI
+  # deploy role's own IAM permissions enforce — left at that default, the
+  # real apply would be denied creating it. Overridden to match.
+  iam_policy_name            = "eks-${var.cluster_name}-karpenter-controller"
+  iam_policy_use_name_prefix = false
+
+  node_iam_role_name            = "eks-${var.cluster_name}-karpenter-node"
+  node_iam_role_use_name_prefix = false
 
   node_iam_role_additional_policies = {
     AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"

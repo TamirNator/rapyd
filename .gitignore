@@ -11,3 +11,8 @@ crash.*.log
 **/backend.tf
 **/provider.tf
 **/versions.tf
+
+# Written and removed by CI's per-module validate step (see
+# .github/workflows/terraform.yml); ignored here too as a safety net in
+# case a run is interrupted before its cleanup step.
+**/ci_versions.tf

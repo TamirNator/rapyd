@@ -3,8 +3,11 @@ data "aws_availability_zones" "available" {
 }
 
 module "vpc" {
-  source  = "terraform-aws-modules/vpc/aws"
-  version = "~> 5.17"
+  source = "terraform-aws-modules/vpc/aws"
+  # v6's only breaking change vs v5 is requiring AWS provider >= 6 (checked
+  # against the real module changelog), already satisfied since nothing
+  # here caps the aws provider below that.
+  version = "~> 6.0"
 
   name = var.vpc_name
   cidr = var.vpc_cidr

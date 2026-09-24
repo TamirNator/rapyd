@@ -18,3 +18,8 @@ output "cluster_security_group_id" {
   description = "Security group ID for the EKS cluster"
   value       = module.eks.cluster_primary_security_group_id
 }
+
+output "node_security_group_id" {
+  description = "Security group ID shared by this cluster's nodes"
+  value       = module.eks.node_security_group_id
+}

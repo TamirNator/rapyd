@@ -9,8 +9,21 @@ variable "cluster_endpoint" {
 }
 
 variable "karpenter_chart_version" {
-  description = "Karpenter Helm chart version"
+  description = <<-EOT
+    Karpenter Helm chart version. Pinned here instead of injected by CI, so
+    bumping it is a deliberate, reviewable code change like any other
+    version pin in this repo, not a value someone can silently change in a
+    GitHub Actions/repo variable outside git history.
+
+    1.14.1 verified compatible with this module's manifests by pulling the
+    real chart and checking its bundled CRDs directly (not the chart's
+    artifacthub.io/crds annotation, confirmed stale/wrong): NodePool and
+    EC2NodeClass both serve karpenter.sh/v1 and karpenter.k8s.aws/v1 as the
+    storage version, and every field this module sets (including
+    amiSelectorTerms.alias) still exists in that schema.
+  EOT
   type        = string
+  default     = "1.14.1"
 }
 
 variable "tags" {

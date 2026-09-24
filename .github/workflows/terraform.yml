@@ -1,4 +1,4 @@
-name: Terraform CI
+name: Sentinel Split Architecture CI/CD
 
 on:
   pull_request:
@@ -20,14 +20,29 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  AWS_REGION: eu-west-1
-  TERRAGRUNT_VERSION: v0.45.15
+  AWS_REGION: us-east-1
+  TERRAGRUNT_VERSION: v1.1.6
+  # Deliberately NOT bumped to Terraform's actual latest (v1.16.4):
+  # HashiCorp relicensed Terraform from open-source MPL 2.0 to BUSL
+  # starting at v1.6.0. 1.5.7 is the last MPL-licensed release, and staying
+  # on it looks like a deliberate choice, not an oversight — flagging this
+  # explicitly rather than silently crossing that line.
   TERRAFORM_VERSION: 1.5.7
-  TERRAGRUNT_ROOT: deploy/terragrunt/main/eu-west-1/dev
+  TFLINT_VERSION: v0.64.0
+  KUBECONFORM_VERSION: v0.8.0
+  # The account root, not a specific region: `run --all` walks whatever
+  # regions exist under it, so adding a new region needs no change here.
+  TERRAGRUNT_ROOT: deploy/terragrunt/dev
+  # These match the naming convention every leaf terragrunt.hcl derives:
+  # rapyd-<region>-<unit-name>. Fixed here deliberately: this step's job is
+  # "deploy the backend app to the backend cluster", a real, specific
+  # mapping, not something that should be derived generically.
+  BACKEND_CLUSTER: rapyd-us-east-1-eks-backend
+  GATEWAY_CLUSTER: rapyd-us-east-1-eks-gateway
 
 jobs:
-  terraform:
-    name: Terraform checks and plan
+  pipeline:
+    name: Validate, plan/apply, and deploy
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -35,10 +50,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
@@ -52,27 +67,202 @@ jobs:
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/terragrunt" --version
 
-      - name: Check Terraform formatting
+      - name: Install tflint
+        run: |
+          curl --fail --silent --show-error --location \
+            "https://github.com/terraform-linters/tflint/releases/download/${TFLINT_VERSION}/tflint_linux_amd64.zip" \
+            --output "$RUNNER_TEMP/tflint.zip"
+          unzip -q "$RUNNER_TEMP/tflint.zip" -d "$RUNNER_TEMP"
+          chmod +x "$RUNNER_TEMP/tflint"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/tflint" --version
+
+      # kubeval is archived/unmaintained; kubeconform is its actively
+      # maintained successor with the same purpose (schema-validate
+      # manifests against the Kubernetes OpenAPI spec with no live cluster
+      # needed), used here in its place.
+      - name: Install kubeconform
+        run: |
+          curl --fail --silent --show-error --location \
+            "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar xz -C "$RUNNER_TEMP" kubeconform
+          chmod +x "$RUNNER_TEMP/kubeconform"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+
+      - name: Terraform fmt check
         run: terraform fmt -check -recursive deploy/modules
 
-      - name: Check Terragrunt formatting
+      - name: Terraform validate (per module)
         run: |
-          terragrunt hclfmt --terragrunt-check deploy/terragrunt/root.hcl
-          terragrunt hclfmt --terragrunt-check deploy/terragrunt/_envcommon
-          find "$TERRAGRUNT_ROOT" -name terragrunt.hcl -print0 \
-            | xargs -0 -n1 terragrunt hclfmt --terragrunt-check
+          set -e
+          # Modules deliberately carry no required_providers of their own
+          # (see deploy/terragrunt/root.hcl: Terragrunt generates one
+          # shared block into every unit at plan/apply time, and a module
+          # can only have one). Standalone `terraform init` outside
+          # Terragrunt has no such generated file, so this recreates the
+          # same block temporarily, only for this validation pass, and
+          # removes it again, never committing it.
+          for m in deploy/modules/*/; do
+            echo "== $m =="
+            # Not dot-prefixed: Terraform silently skips dotfiles when
+            # scanning a directory for *.tf configuration, confirmed by
+            # testing this exact approach locally, so a leading dot here
+            # would make this whole block a silent no-op.
+            cat > "$m/ci_versions.tf" <<-'EOF'
+          terraform {
+            required_version = ">= 1.5.0"
+            required_providers {
+              aws     = { source = "hashicorp/aws", version = ">= 5.0" }
+              helm    = { source = "hashicorp/helm", version = ">= 2.0" }
+              kubectl = { source = "gavinbunney/kubectl", version = ">= 1.14" }
+            }
+          }
+          EOF
+            terraform -chdir="$m" init -backend=false -input=false
+            terraform -chdir="$m" validate
+            rm "$m/ci_versions.tf"
+          done
+
+      - name: tflint (per module)
+        run: |
+          set -e
+          tflint --init
+          # --chdir changes tflint's own working directory before it looks
+          # for a config file, so .tflint.hcl at the repo root needs to be
+          # pointed at explicitly here or it's silently not applied.
+          for m in deploy/modules/*/; do
+            echo "== $m =="
+            tflint --chdir="$m" --config="$(pwd)/.tflint.hcl"
+          done
+
+      # Terragrunt 1.x renamed hclfmt to `hcl fmt` and made it recursive by
+      # default (confirmed by testing this exact command against this repo),
+      # replacing the old root.hcl-plus-xargs-loop combination with one call
+      # covering the whole tree, root.hcl included.
+      - name: Terragrunt formatting check
+        run: terragrunt hcl fmt --check --working-dir deploy/terragrunt
+
+      - name: Lint and validate Helm charts
+        run: |
+          set -e
+          helm lint deploy/helm/hello-backend
+          helm lint deploy/helm/gateway-proxy --set backendHostname=placeholder.invalid
+
+          helm template deploy/helm/hello-backend --namespace backend \
+            | kubeconform -strict -summary -
+          helm template deploy/helm/gateway-proxy --namespace gateway \
+              --set backendHostname=placeholder.invalid \
+            | kubeconform -strict -summary -
 
       - name: Configure AWS credentials with OIDC
         if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_TERRAFORM_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: github-actions-${{ github.run_id }}
 
+      # PRs only ever plan, so a PR from an untrusted fork can't apply
+      # anything; only a push to main (post-review) applies for real.
+      # `run-all <cmd>` became `run --all -- <cmd>` in Terragrunt 1.x
+      # (confirmed against this repo's real dependency graph, including
+      # that a failure correctly cascades to dependent units and skips
+      # them, rather than trying to proceed anyway).
       - name: Plan Terragrunt deployment
-        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        if: github.event_name == 'pull_request'
         working-directory: ${{ env.TERRAGRUNT_ROOT }}
-        env:
-          TF_VAR_karpenter_chart_version: ${{ vars.KARPENTER_CHART_VERSION }}
-        run: terragrunt run-all plan --terragrunt-non-interactive
+        run: terragrunt run --all --non-interactive -- plan
+
+      - name: Apply Terragrunt deployment
+        if: github.event_name == 'push'
+        working-directory: ${{ env.TERRAGRUNT_ROOT }}
+        run: terragrunt run --all --non-interactive -- apply
+
+      - name: Configure kubectl contexts for both clusters
+        if: github.event_name == 'push'
+        run: |
+          aws eks update-kubeconfig --name "$BACKEND_CLUSTER" --region "$AWS_REGION" --alias backend
+          aws eks update-kubeconfig --name "$GATEWAY_CLUSTER" --region "$AWS_REGION" --alias gateway
+
+      # Both apps land on Karpenter-provisioned nodes: the only other node
+      # group (the bootstrap "system" one) is tainted CriticalAddonsOnly,
+      # off-limits to regular pods. terraform apply installs Karpenter via
+      # helm_release, but "the Deployment object exists" isn't "the
+      # controller is up and reconciling" — deploying an app before it's
+      # actually ready would leave pods stuck Pending until Karpenter
+      # catches up, or timing out `helm upgrade --install --wait` for no
+      # real reason.
+      - name: Wait for Karpenter to be ready on both clusters
+        if: github.event_name == 'push'
+        run: |
+          kubectl --context backend -n kube-system rollout status deployment/karpenter --timeout=180s
+          kubectl --context gateway -n kube-system rollout status deployment/karpenter --timeout=180s
+
+      # --wait's timeout has to cover a cold Karpenter node launch on the
+      # very first deploy, not just pod scheduling: notice the pending pod,
+      # request a new EC2 instance, launch it, join the cluster, bring the
+      # CNI up, then finally schedule the pod. 3m was cutting that close;
+      # 6m gives real headroom without masking a genuinely stuck rollout.
+      - name: Deploy backend service
+        if: github.event_name == 'push'
+        run: |
+          helm upgrade --install hello-backend deploy/helm/hello-backend \
+            --kube-context backend \
+            --namespace backend --create-namespace \
+            --wait --timeout 6m
+
+      - name: Wait for backend internal load balancer
+        if: github.event_name == 'push'
+        id: backend_lb
+        run: |
+          for i in $(seq 1 30); do
+            hostname=$(kubectl --context backend get svc hello-backend -n backend \
+              -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+            if [ -n "$hostname" ]; then
+              echo "hostname=$hostname" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "Backend internal load balancer never got a hostname" >&2
+          exit 1
+
+      - name: Deploy gateway proxy
+        if: github.event_name == 'push'
+        run: |
+          helm upgrade --install gateway-proxy deploy/helm/gateway-proxy \
+            --kube-context gateway \
+            --namespace gateway --create-namespace \
+            --set backendHostname=${{ steps.backend_lb.outputs.hostname }} \
+            --wait --timeout 6m
+
+      - name: Validate proxy reaches backend
+        if: github.event_name == 'push'
+        run: |
+          set -e
+          hostname=""
+          for i in $(seq 1 30); do
+            hostname=$(kubectl --context gateway get svc gateway-proxy -n gateway \
+              -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+            if [ -n "$hostname" ]; then
+              break
+            fi
+            sleep 20
+          done
+          if [ -z "$hostname" ]; then
+            echo "Gateway load balancer never got a hostname" >&2
+            exit 1
+          fi
+
+          for i in $(seq 1 15); do
+            if curl --fail --silent "http://$hostname" | grep -q "Hello from backend"; then
+              echo "Proxy successfully reached the backend"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "Proxy never returned the backend's response" >&2
+          exit 1
