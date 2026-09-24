@@ -1,0 +1,16 @@
+# Public-facing: this is the one Service in the whole setup meant to be
+# reachable from the internet.
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-proxy
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  type: LoadBalancer
+  selector:
+    app: gateway-proxy
+  ports:
+    - port: {{ .Values.servicePort }}
+      targetPort: {{ .Values.containerPort }}
+      protocol: TCP

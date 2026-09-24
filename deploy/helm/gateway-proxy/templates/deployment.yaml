@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-proxy
+  labels:
+    app: gateway-proxy
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: gateway-proxy
+  template:
+    metadata:
+      labels:
+        app: gateway-proxy
+      annotations:
+        # Forces a rollout whenever the rendered nginx config changes,
+        # including backendHostname (proxy_pass targets it directly). nginx
+        # resolves proxy_pass hostnames once at startup and caches the
+        # result for the pod's lifetime, so without this, a new backend NLB
+        # from a future deploy would leave existing pods silently talking
+        # to the old one forever.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      containers:
+        - name: nginx
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.containerPort }}
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: nginx-proxy-conf

@@ -1,0 +1,29 @@
+replicaCount: 2
+
+image:
+  # Non-root variant: the stock nginx image runs as root because binding
+  # port 80 needs it. This one listens on 8080 instead, specifically so it
+  # doesn't need root at all.
+  repository: nginxinc/nginx-unprivileged
+  tag: "1.31.6-alpine"
+
+# Public-facing port stays 80; only the container's own listening port
+# changes for the non-root image. The Service maps port -> containerPort,
+# so nothing external changes.
+servicePort: 80
+containerPort: 8080
+
+# Must be supplied via --set backendHostname=<hostname> at deploy time: the
+# backend chart's internal NLB hostname, only known after it's installed.
+# No usable default; templates/external-service.yaml fails the render
+# loudly if this is left unset, instead of silently deploying a broken
+# proxy target.
+backendHostname: ""
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 64Mi

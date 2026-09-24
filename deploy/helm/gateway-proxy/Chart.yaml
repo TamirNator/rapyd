@@ -1,0 +1,6 @@
+apiVersion: v2
+name: gateway-proxy
+description: Public-facing nginx reverse proxy forwarding to the Sentinel backend cluster
+type: application
+version: 0.1.0
+appVersion: "1.27"

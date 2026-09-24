@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-backend
+  labels:
+    app: hello-backend
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: hello-backend
+  template:
+    metadata:
+      labels:
+        app: hello-backend
+    spec:
+      containers:
+        - name: hello-backend
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          args:
+            - "-text={{ .Values.responseText }}"
+            - "-listen=:{{ .Values.containerPort }}"
+          ports:
+            - containerPort: {{ .Values.containerPort }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true

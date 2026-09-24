@@ -1,0 +1,20 @@
+# Internal NLB, not a plain ClusterIP: ClusterIP is only reachable inside
+# this cluster's own pod network, but the gateway cluster lives in a
+# different VPC. An internal-scheme NLB gets a real ENI with a private IP
+# in this VPC's subnets, reachable from the peered gateway VPC over the
+# VPC peering connection and the security group rule that allows it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-backend
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+spec:
+  type: LoadBalancer
+  selector:
+    app: hello-backend
+  ports:
+    - port: {{ .Values.servicePort }}
+      targetPort: {{ .Values.containerPort }}
+      protocol: TCP
