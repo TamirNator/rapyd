@@ -10,7 +10,7 @@ locals {
   path_parts = split("/", path_relative_to_include("root"))
   account    = local.path_parts[0]
   aws_region = local.path_parts[1]
-  name = basename(dirname(get_terragrunt_dir()))
+  name       = basename(dirname(get_terragrunt_dir()))
 }
 
 dependency "vpc" {
