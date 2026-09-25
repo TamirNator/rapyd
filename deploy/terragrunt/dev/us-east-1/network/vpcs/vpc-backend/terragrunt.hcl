@@ -12,11 +12,6 @@ locals {
   name       = basename(get_terragrunt_dir())
 }
 
-# Backend domain: internal services and sensitive workloads only. No
-# workload ever runs in the public subnets below; they exist solely to give
-# the NAT gateway a home, since nodes still need egress to pull images and
-# reach the EKS API. A NAT gateway is not an EC2 instance and accepts no
-# inbound traffic, so this doesn't conflict with "no public EC2s".
 inputs = {
   vpc_name = "rapyd-${local.aws_region}-${local.name}"
 

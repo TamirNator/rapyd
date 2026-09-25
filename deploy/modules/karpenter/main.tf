@@ -1,11 +1,3 @@
-# Used by the generated helm/kubectl provider blocks (see this unit's
-# terragrunt.hcl) to authenticate to the cluster. Needs no extra IAM
-# permission beyond sts:GetCallerIdentity (already granted): it generates a
-# signed STS token locally rather than calling any EKS API. Referenced
-# only from k8s_providers.tf, which Terragrunt generates at apply time and
-# doesn't exist when CI lints this module directory standalone — hence the
-# ignore below.
-# tflint-ignore: terraform_unused_declarations
 data "aws_eks_cluster_auth" "this" {
   name = var.cluster_name
 }
@@ -19,15 +11,6 @@ module "karpenter" {
   iam_role_name                   = "eks-${var.cluster_name}-karpenter-controller"
   iam_role_use_name_prefix        = false
 
-  # Real apply confirmed the controller's default standalone policy
-  # actually exceeds AWS's 6,144-character limit for managed policies
-  # (LimitExceeded: Cannot exceed quota for PolicySize). enable_inline_policy
-  # switches it to an inline role policy instead, which has a 10,240-char
-  # limit — the module's own documented fix for this exact error. This
-  # also means iam_policy_name/iam_policy_use_name_prefix (previously set
-  # to keep the standalone policy's name eks-/sentinel--prefixed) are moot:
-  # there's no separate policy resource anymore, just an inline one on the
-  # already-prefixed controller role.
   enable_inline_policy = true
 
   node_iam_role_name            = "eks-${var.cluster_name}-karpenter-node"

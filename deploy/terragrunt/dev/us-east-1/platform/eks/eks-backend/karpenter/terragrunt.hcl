@@ -21,13 +21,6 @@ dependency "cluster" {
   }
 }
 
-# The karpenter module's helm_release and kubectl_manifest resources need
-# real cluster connectivity, which nothing else in this repo configures
-# (root.hcl only generates the aws provider). Real apply confirmed this
-# gap directly: "Kubernetes cluster unreachable: invalid configuration, no
-# configuration has been provided." Generated here, not in root.hcl, since
-# only karpenter units need it — vpc/eks-cluster units have no use for a
-# Kubernetes-facing provider at all.
 generate "k8s_providers" {
   path      = "k8s_providers.tf"
   if_exists = "overwrite_terragrunt"

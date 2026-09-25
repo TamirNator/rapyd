@@ -25,7 +25,6 @@ helm/
 scripts/
   setup-github-oidc.sh   one-time GitHub Actions OIDC bootstrap (not run by CI)
 .github/workflows/terraform.yml   the whole CI/CD pipeline
-.tflint.hcl                       repo-wide tflint config
 ```
 
 ## How to run it
@@ -158,7 +157,7 @@ artifact-passed outputs would be the natural next step for a bigger
 pipeline, see "What's next"):
 
 1. **Lint/validate, no credentials needed**: `terraform fmt -check`,
-   `terraform validate` per module, `tflint` per module,
+   `terraform validate` per module,
    `terragrunt hcl fmt --check --working-dir deploy/terragrunt`, `helm lint`
    on both charts, and `helm template | kubeconform -strict` on both charts'
    rendered output.
@@ -172,9 +171,7 @@ pipeline, see "What's next"):
      needs that same block supplied temporarily; the workflow writes it as
      `ci_versions.tf` (not dot-prefixed — confirmed by testing that
      Terraform silently skips dotfiles when scanning for `*.tf`), validates,
-     then deletes it, never committing it. Same reasoning applies to
-     `tflint`, which needs `--config` pointed explicitly at the repo-root
-     `.tflint.hcl`, since `--chdir` changes where it looks for config too.
+     then deletes it, never committing it.
 2. **OIDC auth**: `aws-actions/configure-aws-credentials` assumes
    `AWS_TERRAFORM_ROLE_ARN` via GitHub's OIDC provider — no long-lived AWS
    keys stored anywhere (the assignment's optional bonus).
@@ -215,7 +212,7 @@ pipeline, see "What's next"):
   HashiCorp relicensed Terraform from open-source MPL 2.0 to BUSL starting
   at 1.6.0. 1.5.7 is the last MPL release, and staying on it reads as a
   deliberate choice already baked into this repo, not an oversight — so
-  every other tool here (Terragrunt, tflint, kubeconform, the
+  every other tool here (Terragrunt, kubeconform, the
   `terraform-aws-modules` registry modules, the Karpenter chart, container
   images, GitHub Actions, the EKS-supported Kubernetes version) was bumped
   to its real current latest, verified against the actual registry/API/

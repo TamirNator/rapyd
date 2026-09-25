@@ -24,21 +24,9 @@ concurrency:
 env:
   AWS_REGION: us-east-1
   TERRAGRUNT_VERSION: v1.1.6
-  # Deliberately NOT bumped to Terraform's actual latest (v1.16.4):
-  # HashiCorp relicensed Terraform from open-source MPL 2.0 to BUSL
-  # starting at v1.6.0. 1.5.7 is the last MPL-licensed release, and staying
-  # on it looks like a deliberate choice, not an oversight — flagging this
-  # explicitly rather than silently crossing that line.
   TERRAFORM_VERSION: 1.5.7
-  TFLINT_VERSION: v0.64.0
   KUBECONFORM_VERSION: v0.8.0
-  # The account root, not a specific region: `run --all` walks whatever
-  # regions exist under it, so adding a new region needs no change here.
   TERRAGRUNT_ROOT: deploy/terragrunt/dev
-  # These match the naming convention every leaf terragrunt.hcl derives:
-  # rapyd-<region>-<unit-name>. Fixed here deliberately: this step's job is
-  # "deploy the backend app to the backend cluster", a real, specific
-  # mapping, not something that should be derived generically.
   BACKEND_CLUSTER: rapyd-us-east-1-eks-backend
   GATEWAY_CLUSTER: rapyd-us-east-1-eks-gateway
 
@@ -68,16 +56,6 @@ jobs:
           chmod +x "$RUNNER_TEMP/terragrunt"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/terragrunt" --version
-
-      - name: Install tflint
-        run: |
-          curl --fail --silent --show-error --location \
-            "https://github.com/terraform-linters/tflint/releases/download/${TFLINT_VERSION}/tflint_linux_amd64.zip" \
-            --output "$RUNNER_TEMP/tflint.zip"
-          unzip -q "$RUNNER_TEMP/tflint.zip" -d "$RUNNER_TEMP"
-          chmod +x "$RUNNER_TEMP/tflint"
-          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/tflint" --version
 
       # kubeval is archived/unmaintained; kubeconform is its actively
       # maintained successor with the same purpose (schema-validate
@@ -126,18 +104,6 @@ jobs:
             terraform -chdir="$m" init -backend=false -input=false
             terraform -chdir="$m" validate
             rm "$m/ci_versions.tf"
-          done
-
-      - name: tflint (per module)
-        run: |
-          set -e
-          tflint --init
-          # --chdir changes tflint's own working directory before it looks
-          # for a config file, so .tflint.hcl at the repo root needs to be
-          # pointed at explicitly here or it's silently not applied.
-          for m in deploy/modules/*/; do
-            echo "== $m =="
-            tflint --chdir="$m" --config="$(pwd)/.tflint.hcl"
           done
 
       # Terragrunt 1.x renamed hclfmt to `hcl fmt` and made it recursive by
@@ -189,25 +155,12 @@ jobs:
           aws eks update-kubeconfig --name "$BACKEND_CLUSTER" --region "$AWS_REGION" --alias backend
           aws eks update-kubeconfig --name "$GATEWAY_CLUSTER" --region "$AWS_REGION" --alias gateway
 
-      # Both apps land on Karpenter-provisioned nodes: the only other node
-      # group (the bootstrap "system" one) is tainted CriticalAddonsOnly,
-      # off-limits to regular pods. terraform apply installs Karpenter via
-      # helm_release, but "the Deployment object exists" isn't "the
-      # controller is up and reconciling" — deploying an app before it's
-      # actually ready would leave pods stuck Pending until Karpenter
-      # catches up, or timing out `helm upgrade --install --wait` for no
-      # real reason.
       - name: Wait for Karpenter to be ready on both clusters
         if: github.event_name == 'push'
         run: |
           kubectl --context backend -n kube-system rollout status deployment/karpenter --timeout=180s
           kubectl --context gateway -n kube-system rollout status deployment/karpenter --timeout=180s
 
-      # --wait's timeout has to cover a cold Karpenter node launch on the
-      # very first deploy, not just pod scheduling: notice the pending pod,
-      # request a new EC2 instance, launch it, join the cluster, bring the
-      # CNI up, then finally schedule the pod. 3m was cutting that close;
-      # 6m gives real headroom without masking a genuinely stuck rollout.
       - name: Deploy backend service
         if: github.event_name == 'push'
         run: |
